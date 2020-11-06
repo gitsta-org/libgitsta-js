@@ -2,7 +2,7 @@ export type Repo = {
   name: string;
 };
 
-export type CommitSummary = {
+export type CommitLogEntry = {
   id: string;
   author: string;
   time: string;
@@ -13,18 +13,43 @@ export type Commit = {
   author: string;
   time: string;
   files: {
-    filename: [];
+    filename: string;
     change: "create" | "update" | "delete";
   }[];
 };
 
-export async function initRepo(name: string) {}
+export type FileChange =
+  | {
+      type: "create";
+      filename: string;
+      contents: string;
+    }
+  | {
+      type: "update";
+      filename: string;
+      contents: string;
+    }
+  | {
+      type: "delete";
+      filename: string;
+    };
+
+export type CommitData = {
+  id: string;
+  author: string;
+  time: string;
+  files: FileChange[];
+};
+
+export async function initRepo(name: string) {
+  // 
+}
 
 export async function getRepos(name: string): Promise<Repo> {
   return { name };
 }
 
-export async function getCommits(repo: Repo): Promise<CommitSummary[]> {
+export async function getCommits(repo: Repo): Promise<CommitLogEntry[]> {
   return [];
 }
 
@@ -35,6 +60,10 @@ export async function getCommitDetails(id: string): Promise<Commit> {
     time: "100",
     files: [],
   };
+}
+
+export async function createCommit(commit: CommitData) {
+  
 }
 
 export async function getFiles() {}
