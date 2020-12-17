@@ -1,3 +1,5 @@
+import { listeners } from "cluster";
+
 export type FileCreation = {
   type: "create";
   filePath: string;
@@ -25,14 +27,49 @@ export type Commit = {
 export type ChangeFunc = (repo: string, commit: Commit) => Promise<boolean>;
 
 export type GitstaProvider = {
+  type: string;
   subscribe: (repo: string, onChange: ChangeFunc) => void;
   unsubscribe: (repo: string, onChange: ChangeFunc) => void;
   commit: (repo: string, commit: Commit) => Promise<void>;
 };
 
-export async function setup() {}
+export type RepoConfig = {
+  provider: string;
+  config: any;
+};
 
-export async function subscribe(repo: string, changeFunc: ChangeFunc) {}
+let providers: GitstaProvider[] = [];
+
+export async function setup(gitstaProviders: GitstaProvider[]) {
+  providers = providers.concat(gitstaProviders);
+}
+
+type Listeners = {
+  [repo: string]: ChangeFunc[];
+};
+
+let listeners: Listeners = {};
+
+export function subscribe(repo: string, changeFunc: ChangeFunc) {
+  if (listeners[repo]) {
+    listeners[repo].push(changeFunc);
+  } else {
+    listeners[repo] = [changeFunc];
+  }
+}
+
+export function unsubscribe(repo: string, changeFunc: ChangeFunc) {
+  if (repo === "*") {
+    listeners = Object.keys(listeners).reduce((acc, repo) => {
+      acc[repo] = listeners[repo].filter((x) => x !== changeFunc);
+      return acc;
+    }, {} as Listeners);
+  } else {
+    if (listeners[repo]) {
+      listeners[repo] = listeners[repo].filter((x) => x !== changeFunc);
+    }
+  }
+}
 
 export type SyncOptions = {
   drivers: {
