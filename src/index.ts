@@ -1,5 +1,3 @@
-import { listeners } from "cluster";
-
 export type FileCreation = {
   type: "create";
   filePath: string;
