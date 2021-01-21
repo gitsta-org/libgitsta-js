@@ -1,13 +1,13 @@
+import { Readable } from "stream";
+
 export type FileCreation = {
   type: "create";
   filePath: string;
-  contents: string;
 };
 
 export type FileUpdation = {
   type: "update";
   filePath: string;
-  contents: string;
 };
 
 export type FileDeletion = {
@@ -22,81 +22,67 @@ export type Commit = {
   changes: FileChange[];
 };
 
-export type ChangeFunc = (repo: string, commit: Commit) => Promise<boolean>;
+export type ChangeFunc = (repo: string, commit: Commit) => Promise<void>;
 
 export type GitstaProvider = {
   type: string;
   subscribe: (repo: string, onChange: ChangeFunc) => void;
   unsubscribe: (repo: string, onChange: ChangeFunc) => void;
   commit: (repo: string, commit: Commit) => Promise<void>;
+  getFileStream: (path: string) => Readable;
+  
 };
 
 export type RepoConfig = {
   provider: string;
   config: any;
+  hashingAlgorithm: "sha1";
 };
 
-let providers: GitstaProvider[] = [];
+const providers: Map<string, GitstaProvider> = new Map();
 
 export async function setup(gitstaProviders: GitstaProvider[]) {
-  providers = providers.concat(gitstaProviders);
+  gitstaProviders.forEach((x) => providers.set(x.type, x));
 }
 
-type Listeners = {
-  [repo: string]: ChangeFunc[];
-};
+const listeners: Map<string, ChangeFunc[]> = new Map();
 
-let listeners: Listeners = {};
+export async function getRepoConfig(repo: string): Promise<RepoConfig> {
+  return {
+    provider: "github",
+    config: {},
+    hashingAlgorithm: "sha1",
+  };
+}
 
 export function subscribe(repo: string, changeFunc: ChangeFunc) {
-  if (listeners[repo]) {
-    listeners[repo].push(changeFunc);
-  } else {
-    listeners[repo] = [changeFunc];
+  let entries = listeners.get(repo);
+
+  if (!entries) {
+    const newEntries: ChangeFunc[] = [];
+    listeners.set(repo, newEntries);
+    entries = newEntries;
   }
+
+  entries.push(changeFunc);
 }
 
 export function unsubscribe(repo: string, changeFunc: ChangeFunc) {
-  if (repo === "*") {
-    listeners = Object.keys(listeners).reduce((acc, repo) => {
-      acc[repo] = listeners[repo].filter((x) => x !== changeFunc);
-      return acc;
-    }, {} as Listeners);
-  } else {
-    if (listeners[repo]) {
-      listeners[repo] = listeners[repo].filter((x) => x !== changeFunc);
-    }
+  const entries = listeners.get(repo);
+  if (entries) {
+    listeners.set(
+      repo,
+      entries.filter((x) => x !== changeFunc)
+    );
   }
 }
 
-export type SyncOptions = {
-  drivers: {
-    [key: string]: any;
-  };
-};
-
-export async function sync(repo: string, options: SyncOptions) {}
-
-export async function getFiles() {}
-
-export async function createFile(
-  message: string,
-  content: string,
-  sha: string,
-  branch: string,
-  committer: string,
-  author: string
-) {}
-
-export async function readFile() {}
-
-export async function updateFile(
-  message: string,
-  content: string,
-  sha: string,
-  branch: string,
-  committer: string,
-  author: string
-) {}
-
-export async function deleteFile() {}
+export async function commit(repo: string, commit: Commit) {
+  const repoConfig = await getRepoConfig(repo);
+  const provider = providers.get(repoConfig.provider);
+  if (provider) {
+    provider.commit(repo, commit);
+  } else {
+    throw new Error(`The storage provider ${repoConfig.provider} is missing.`);
+  }
+}
